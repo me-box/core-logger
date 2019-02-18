@@ -1,8 +1,8 @@
 open Lwt.Infix;
-
 open Cohttp;
-
 open Cohttp_lwt_unix;
+
+open Client;
 
 let path_to_db = ref("/tmp/nibble/");
 let http_port = ref(8000);

@@ -1,4 +1,5 @@
   
 (executable
   (name main)
-  (libraries irmin-unix oml ezjsonm lwt_log lwt-zmq bitstring hex bos))
+  (preprocess (pps ppx_bitstring))
+  (libraries irmin-unix oml ezjsonm lwt_log lwt-zmq bitstring))

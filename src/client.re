@@ -55,20 +55,6 @@ module Response = {
     | Error(string);
 };
 
-let setup_logger = () => {
-  Lwt_log_core.default :=
-    Lwt_log.channel(
-      ~template="$(date).$(milliseconds) [$(level)] $(message)",
-      ~close_mode=`Keep,
-      ~channel=Lwt_io.stdout,
-      ()
-    );
-  Lwt_log_core.add_rule("*", Lwt_log_core.Debug);
-};
-
-let to_hex = msg =>
-  Hex.(String.trim(of_string(msg) |> hexdump_s(~print_chars=false)));
-
 let handle_header = bits => {
   let tuple = [%bitstring
     switch bits {
@@ -182,7 +168,7 @@ let handle_internal_server_error = options =>
   Response.Error("Internal Server Error") |> Lwt.return;
 
 let handle_response = msg =>
-  Lwt_log_core.debug_f("Received:\n%s", to_hex(msg))
+  Lwt_log_core.debug_f("Received:\n%s", (msg))
   >>= (
     () => {
       let r0 = Bitstring.bitstring_of_string(msg);
@@ -205,7 +191,7 @@ let handle_response = msg =>
   );
 
 let send_request = (~msg, ~to_ as socket) =>
-  Lwt_log_core.debug_f("Sending:\n%s", to_hex(msg))
+  Lwt_log_core.debug_f("Sending:\n%s", msg)
   >>= (
     () =>
       Lwt_zmq.Socket.send(socket, msg)
@@ -248,19 +234,6 @@ let create_options = options => {
   (value, length, count);
 };
 
-let create_post_options = (~uri, ~format) => {
-  let uri_path = create_option(~number=11, ~value=uri);
-  let uri_host = create_option(~number=3, ~value=identity^);
-  let content_format = create_option(~number=12, ~value=format);
-  create_options([|uri_path, uri_host, content_format|]);
-};
-
-let create_get_options = (~uri, ~format) => {
-  let uri_path = create_option(~number=11, ~value=uri);
-  let uri_host = create_option(~number=3, ~value=identity^);
-  let content_format = create_option(~number=12, ~value=format);
-  create_options([|uri_path, uri_host, content_format|]);
-};
 
 let create_observe_option_max_age = seconds => {
   let bits = [%bitstring {|seconds : 32 : bigendian|}];
@@ -282,44 +255,7 @@ let create_observe_options = (~format=content_format^, ~age=max_age^, ~uri) => {
   create_options([|uri_path, uri_host, observe, content_format, max_age|]);
 };
 
-let create_delete_options = (~uri, ~format) => {
-  let uri_path = create_option(~number=11, ~value=uri);
-  let uri_host = create_option(~number=3, ~value=Unix.gethostname());
-  let content_format = create_option(~number=12, ~value=format);
-  create_options([|uri_path, uri_host, content_format|]);
-};
 
-let post = (~token=token^, ~format=content_format^, ~uri, ~payload, ()) => {
-  let (options_value, options_length, options_count) =
-    create_post_options(~uri, ~format);
-  let (header_value, header_length) =
-    create_header(~tkl=String.length(token), ~oc=options_count, ~code=2);
-  let (token_value, token_length) = create_token(~tk=token);
-  let payload_length = String.length(payload) * 8;
-  let bits = [%bitstring
-    {|header_value : header_length : bitstring;
-      token_value : token_length : string;
-      options_value : options_length : bitstring;
-      payload : payload_length : string
-    |}
-  ];
-  Bitstring.string_of_bitstring(bits);
-};
-
-let get = (~token=token^, ~format=content_format^, ~uri, ()) => {
-  let (options_value, options_length, options_count) =
-    create_get_options(~uri, ~format);
-  let (header_value, header_length) =
-    create_header(~tkl=String.length(token), ~oc=options_count, ~code=1);
-  let (token_value, token_length) = create_token(~tk=token);
-  let bits = [%bitstring
-    {|header_value : header_length : bitstring;
-      token_value : token_length : string;
-      options_value : options_length : bitstring
-    |}
-  ];
-  Bitstring.string_of_bitstring(bits);
-};
 
 let observe = (~token=token^, ~format=content_format^, ~uri, ()) => {
   let (options_value, options_length, options_count) =
@@ -336,20 +272,7 @@ let observe = (~token=token^, ~format=content_format^, ~uri, ()) => {
   Bitstring.string_of_bitstring(bits);
 };
 
-let delete = (~token=token^, ~format=content_format^, ~uri, ()) => {
-  let (options_value, options_length, options_count) =
-    create_delete_options(~uri, ~format);
-  let (header_value, header_length) =
-    create_header(~tkl=String.length(token), ~oc=options_count, ~code=4);
-  let (token_value, token_length) = create_token(~tk=token);
-  let bits = [%bitstring
-    {|header_value : header_length : bitstring;
-      token_value : token_length : string;
-      options_value : options_length : bitstring
-    |}
-  ];
-  Bitstring.string_of_bitstring(bits);
-};
+
 
 let set_main_socket_security = soc => {
   ZMQ.Socket.set_curve_serverkey(soc, curve_server_key^);
@@ -383,95 +306,8 @@ let close_socket = lwt_soc => {
   ZMQ.Socket.close(soc);
 };
 
-let post_loop = (socket, count) => {
-  let rec loop = n =>
-    send_request(~msg=post(~uri=uri_path^, ~payload=payload^, ()), ~to_=socket)
-    >>= (
-      resp =>
-        switch resp {
-        | Response.OK =>
-          if (n > 1) {
-            Lwt_unix.sleep(call_freq^) >>= (() => loop(n - 1));
-          } else {
-            Lwt_io.printf("=> OK\n");
-          }
-        | Response.Payload(msg) =>
-          if (n > 1) {
-            Lwt_unix.sleep(call_freq^) >>= (() => loop(n - 1));
-          } else {
-            Lwt_io.printf("%s\n", msg);
-          }
-        | Response.Error(msg) => Lwt_io.printf("=> %s\n", msg)
-        | Response.Unavailable => Lwt_io.printf("=> service unavailable\n")
-        | _ => failwith("unhandled response")
-        }
-    );
-  loop(count);
-};
 
-let post_test = ctx => {
-  let req_soc = connect_request_socket(req_endpoint^, ctx, ZMQ.Socket.req);
-  post_loop(req_soc, loop_count^)
-  >>= (() => close_socket(req_soc) |> Lwt.return);
-};
 
-let get_loop = (socket, count) => {
-  let rec loop = n =>
-    send_request(~msg=get(~uri=uri_path^, ()), ~to_=socket)
-    >>= (
-      resp =>
-        switch resp {
-        | Response.OK =>
-          if (n > 1) {
-            Lwt_unix.sleep(call_freq^) >>= (() => loop(n - 1));
-          } else {
-            Lwt_io.printf("=> OK\n");
-          }
-        | Response.Payload(msg) =>
-          if (n > 1) {
-            Lwt_unix.sleep(call_freq^) >>= (() => loop(n - 1));
-          } else {
-            Lwt_io.printf("%s\n", msg);
-          }
-        | Response.Error(msg) => Lwt_io.printf("=> %s\n", msg)
-        | Response.Unavailable => Lwt_io.printf("=> server unavailable\n")
-        | _ => failwith("unhandled response")
-        }
-    );
-  loop(count);
-};
-
-let get_test = ctx => {
-  let req_soc = connect_request_socket(req_endpoint^, ctx, ZMQ.Socket.req);
-  get_loop(req_soc, loop_count^)
-  >>= (() => close_socket(req_soc) |> Lwt.return);
-};
-
-let delete_loop = (socket, count) => {
-  let rec loop = n =>
-    send_request(~msg=delete(~uri=uri_path^, ()), ~to_=socket)
-    >>= (
-      resp =>
-        switch resp {
-        | Response.OK =>
-          if (n > 1) {
-            Lwt_unix.sleep(call_freq^) >>= (() => loop(n - 1));
-          } else {
-            Lwt_io.printf("=> OK\n");
-          }
-        | Response.Error(msg) => Lwt_io.printf("=> %s\n", msg)
-        | Response.Unavailable => Lwt_io.printf("=> server unavailable\n")
-        | _ => failwith("unhandled response")
-        }
-    );
-  loop(count);
-};
-
-let delete_test = ctx => {
-  let req_soc = connect_request_socket(req_endpoint^, ctx, ZMQ.Socket.req);
-  delete_loop(req_soc, loop_count^)
-  >>= (() => close_socket(req_soc) |> Lwt.return);
-};
 
 let string_split_at = (s, n) => (
   String.sub(s, 0, n),
@@ -540,129 +376,12 @@ let observe_test = ctx => {
   );
 };
 
-let notify_test = ctx => {
-  let req_soc = connect_request_socket(req_endpoint^, ctx, ZMQ.Socket.req);
-  Lwt_log_core.debug_f("Subscribing:%s", uri_path^)
-    >>= () => send_request(~msg=get(~uri=uri_path^, ()), ~to_=req_soc)
-      >>= resp =>
-          switch resp {
-          | Response.Notify(key) =>
-              Lwt_log_core.debug_f("Receiving notifications via ident:%s", uri_path^)
-                >>= () => {
-                  close_socket(req_soc);
-                  let deal_soc = connect_dealer_socket(
-                    key,
-                    uri_path^,
-                    deal_endpoint^,
-                    ctx,
-                    ZMQ.Socket.dealer
-                  );
-                observe_loop(deal_soc, loop_count^)
-                >>= (() => close_socket(deal_soc) |> Lwt.return);
-              }
-          | Response.Unavailable => 
-            close_socket(req_soc) |> (() => Lwt_io.printf("=> service unavailable\n"))     
-          | Response.Error(msg) =>
-            close_socket(req_soc) |> (() => Lwt_io.printf("=> %s\n", msg))
-          | _ => failwith("unhandled response")
-          };
-};
 
 
-let handle_mode = mode => {
-  let func =
-    switch mode {
-    | "post" => post_test
-    | "get" => get_test
-    | "observe" => observe_test
-    | "delete" => delete_test
-    | "notify" => notify_test
-    | _ => raise(Arg.Bad("Unsupported mode"))
-    };
-  command := func;
-};
-
-let set_payload_from = file => {
-  let data = Fpath.v(file) |> Bos.OS.File.read |> Rresult.R.get_ok;
-  payload := data;
-};
-
-let handle_format = format => {
-  let id =
-    switch format {
-    | "text" => 0
-    | "json" => 50
-    | "binary" => 42
-    | _ => raise(Arg.Bad("Unsupported format"))
-    };
-  content_format := create_content_format(id);
-};
 
 let handle_observe_mode = kind => observe_mode := kind;
 
-let parse_cmdline = () => {
-  let usage = "usage: " ++ Sys.argv[0];
-  let speclist = [
-    (
-      "--request-endpoint",
-      Arg.Set_string(req_endpoint),
-      ": to set the request/reply endpoint"
-    ),
-    (
-      "--router-endpoint",
-      Arg.Set_string(deal_endpoint),
-      ": to set the router/dealer endpoint"
-    ),
-    (
-      "--server-key",
-      Arg.Set_string(curve_server_key),
-      ": to set the curve server key"
-    ),
-    (
-      "--public-key",
-      Arg.Set_string(curve_public_key),
-      ": to set the curve public key"
-    ),
-    (
-      "--secret-key",
-      Arg.Set_string(curve_secret_key),
-      ": to set the curve secret key"
-    ),
-    ("--token", Arg.Set_string(token), ": to set access token"),
-    ("--path", Arg.Set_string(uri_path), ": to set the uri path"),
-    ("--payload", Arg.Set_string(payload), ": to set the message payload"),
-    (
-      "--format",
-      Arg.Symbol(["text", "json", "binary"], handle_format),
-      ": to set the message content type"
-    ),
-    (
-      "--loop",
-      Arg.Set_int(loop_count),
-      ": to set the number of times to run post/get/observe test"
-    ),
-    (
-      "--freq",
-      Arg.Set_float(call_freq),
-      ": to set the number of seconds to wait between each get/post operation"
-    ),
-    (
-      "--mode",
-      Arg.Symbol(["post", "get", "observe", "delete", "notify"], handle_mode),
-      " : to set the mode of operation"
-    ),
-    ("--file", Arg.Set(file), ": payload contents comes from a file"),
-    ("--max-age", Arg.Set_int(max_age), ": time in seconds to observe a path"),
-    (
-      "--observe-mode",
-      Arg.Symbol(["data", "audit", "notification"], handle_observe_mode),
-      ": to set the observe mode"
-    ),
-    ("--identity", Arg.Set_string(identity), ": to set the client identity"),
-    ("--enable-logging", Arg.Set(log_mode), ": turn debug mode on")
-  ];
-  Arg.parse(speclist, err => raise(Arg.Bad("Bad argument : " ++ err)), usage);
-};
+
 
 /* server_key: qDq63cJF5gd3Jed:/3t[F8u(ETeep(qk+%pmj(s? */
 /* public_key: MP9pZzG25M2$.a%[DwU$OQ#-:C}Aq)3w*<AY^%V{ */
@@ -690,17 +409,14 @@ let client = () => {
   let ctx = ZMQ.Context.create();
   setup_curve_keys();
   setup_router_keys();
-  parse_cmdline();
   /* can take payload from a file */
-  file^ ? set_payload_from(payload^) : ();
   /* log to screen debug info */
-  log_mode^ ? setup_logger() : ();
   Lwt_main.run(ctx |> command^);
   ZMQ.Context.terminate(ctx);
 };
 
-let _ =
-  try (Lwt_main.run(Lwt.return(client()))) {
-  | Invalid_argument(msg) => Printf.printf("Error: file not found!\n")
-  | e => report_error(e)
-  };
+let foo  = () => {
+  
+};
+
+
