@@ -1,19 +1,29 @@
 open Lwt.Infix;
 
+type t = {
+  zmq_ctx: ZMQ.Context.t,
+  main_endpoint: string,
+  router_endpoint: string,
+  path: string,
+  key: string,
+  token: string
+};
+
 let create_content_format = id => {
   let bits = [%bitstring {|id : 16 : bigendian|}];
   Bitstring.string_of_bitstring(bits);
 };
 
-let req_endpoint = ref("tcp://127.0.0.1:5555");
 
-let deal_endpoint = ref("tcp://127.0.0.1:5556");
+let main_endpoint = ref("tcp://127.0.0.1:5555");
+
+let router_endpoint = ref("tcp://127.0.0.1:5556");
 
 let curve_server_key = ref("");
 
-let curve_public_key = ref("");
+let main_public_key = ref("");
 
-let curve_secret_key = ref("");
+let main_secret_key = ref("");
 
 let router_public_key = ref("");
 
@@ -30,18 +40,6 @@ let identity = ref(Unix.gethostname());
 let max_age = ref(60);
 
 let observe_mode = ref("");
-
-let payload = ref("");
-
-let loop_count = ref(0);
-
-let call_freq = ref(1.0);
-
-let command = ref((_) => Lwt.return_unit);
-
-let log_mode = ref(false);
-
-let file = ref(false);
 
 let version = 1;
 
@@ -276,8 +274,8 @@ let observe = (~token=token^, ~format=content_format^, ~uri, ()) => {
 
 let set_main_socket_security = soc => {
   ZMQ.Socket.set_curve_serverkey(soc, curve_server_key^);
-  ZMQ.Socket.set_curve_publickey(soc, curve_public_key^);
-  ZMQ.Socket.set_curve_secretkey(soc, curve_secret_key^);
+  ZMQ.Socket.set_curve_publickey(soc, main_public_key^);
+  ZMQ.Socket.set_curve_secretkey(soc, main_secret_key^);
 };
 
 let set_dealer_socket_security = (soc, key) => {
@@ -307,16 +305,7 @@ let close_socket = lwt_soc => {
 };
 
 
-
-
-let string_split_at = (s, n) => (
-  String.sub(s, 0, n),
-  String.sub(s, n, String.length(s) - n)
-);
-
-let string_drop_prefix = (n, s) => string_split_at(s, n) |> snd;
-
-let observe_loop = (socket, count) => {
+let observe_loop = (socket) => {
   let rec loop = () =>
     Lwt_zmq.Socket.recv(socket)
     >>= handle_response
@@ -338,8 +327,8 @@ let set_socket_subscription = (socket, path) => {
   ZMQ.Socket.subscribe(soc, path);
 };
 
-let observe_test = ctx => {
-  let req_soc = connect_request_socket(req_endpoint^, ctx, ZMQ.Socket.req);
+let observe_connect = ctx => {
+  let req_soc = connect_request_socket(main_endpoint^, ctx, ZMQ.Socket.req);
   Lwt_log_core.debug_f("Subscribing:%s", uri_path^)
   >>= (
     () =>
@@ -360,11 +349,11 @@ let observe_test = ctx => {
                   connect_dealer_socket(
                     key,
                     ident,
-                    deal_endpoint^,
+                    router_endpoint^,
                     ctx,
                     ZMQ.Socket.dealer
                   );
-                observe_loop(deal_soc, loop_count^)
+                observe_loop(deal_soc)
                 >>= (() => close_socket(deal_soc) |> Lwt.return);
               }
             )
@@ -377,19 +366,10 @@ let observe_test = ctx => {
 };
 
 
-
-
-let handle_observe_mode = kind => observe_mode := kind;
-
-
-
-/* server_key: qDq63cJF5gd3Jed:/3t[F8u(ETeep(qk+%pmj(s? */
-/* public_key: MP9pZzG25M2$.a%[DwU$OQ#-:C}Aq)3w*<AY^%V{ */
-/* secret_key: j#3yqGG17QNTe(g@jJt6[LOg%ivqr<:}L%&NAUPt */
-let setup_curve_keys = () => {
+let setup_main_keys = () => {
   let (public_key, private_key) = ZMQ.Curve.keypair();
-  curve_public_key := public_key;
-  curve_secret_key := private_key;
+  main_public_key := public_key;
+  main_secret_key := private_key;
 };
 
 let setup_router_keys = () => {
@@ -398,25 +378,19 @@ let setup_router_keys = () => {
   router_secret_key := private_key;
 };
 
-let report_error = e => {
-  let msg = Printexc.to_string(e);
-  let stack = Printexc.get_backtrace();
-  let _ = Lwt_log_core.error_f("Opps: %s%s", msg, stack);
-  ();
-};
 
-let client = () => {
-  let ctx = ZMQ.Context.create();
-  setup_curve_keys();
+let observe = (~main_endpoint, ~router_endpoint, ~path, ~key, ~token) => {
+  setup_main_keys();
   setup_router_keys();
-  /* can take payload from a file */
-  /* log to screen debug info */
-  Lwt_main.run(ctx |> command^);
-  ZMQ.Context.terminate(ctx);
+  {
+    zmq_ctx: ZMQ.Context.create(), 
+    main_endpoint: main_endpoint,
+    router_endpoint: router_endpoint,
+    path: path, 
+    key: key, 
+    token: token
+  };
 };
 
-let foo  = () => {
-  
-};
 
 
