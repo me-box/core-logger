@@ -6,42 +6,14 @@ type t = {
   router_endpoint: string,
   path: string,
   key: string,
-  token: string
+  token: string,
+  max_age: int,
 };
-
-let create_content_format = id => {
-  let bits = [%bitstring {|id : 16 : bigendian|}];
-  Bitstring.string_of_bitstring(bits);
-};
-
-
-let main_endpoint = ref("tcp://127.0.0.1:5555");
-
-let router_endpoint = ref("tcp://127.0.0.1:5556");
-
-let curve_server_key = ref("");
 
 let main_public_key = ref("");
-
 let main_secret_key = ref("");
-
 let router_public_key = ref("");
-
 let router_secret_key = ref("");
-
-let token = ref("");
-
-let uri_path = ref("");
-
-let content_format = ref(create_content_format(50));
-
-let identity = ref(Unix.gethostname());
-
-let max_age = ref(60);
-
-let observe_mode = ref("");
-
-let version = 1;
 
 module Response = {
   type t =
@@ -53,9 +25,14 @@ module Response = {
     | Error(string);
 };
 
+let create_content_format = id => {
+  let bits = [%bitstring {|id : 16 : bigendian|}];
+  Bitstring.string_of_bitstring(bits);
+};
+
 let handle_header = bits => {
-  let tuple = [%bitstring
-    switch bits {
+  let tuple =
+    switch%bitstring (bits) {
     | {|code : 8 : unsigned;
         oc : 8 : unsigned;
         tkl : 16 : bigendian;
@@ -64,17 +41,16 @@ let handle_header = bits => {
         tkl,
         oc,
         code,
-        rest
+        rest,
       )
     | {|_|} => failwith("invalid header")
-    }
-  ];
+    };
   tuple;
 };
 
 let handle_option = bits => {
-  let tuple = [%bitstring
-    switch bits {
+  let tuple =
+    switch%bitstring (bits) {
     | {|number : 16 : bigendian;
         len : 16 : bigendian;
         value: len*8: string;
@@ -82,11 +58,10 @@ let handle_option = bits => {
       |} => (
         number,
         value,
-        rest
+        rest,
       )
     | {|_|} => failwith("invalid options")
-    }
-  ];
+    };
   tuple;
 };
 
@@ -133,15 +108,13 @@ let handle_ack_content = (options, payload) => {
   };
 };
 
-let handle_ack_created = options => {
+let handle_ack_created = options =>
   if (has_public_key(options)) {
     let key = get_option_value(options, 2048);
-    Response.Notify(key) |> Lwt.return
+    Response.Notify(key) |> Lwt.return;
   } else {
     Response.OK |> Lwt.return;
-  };  
-};
-
+  };
 
 let handle_ack_deleted = options => Response.OK |> Lwt.return;
 
@@ -166,13 +139,13 @@ let handle_internal_server_error = options =>
   Response.Error("Internal Server Error") |> Lwt.return;
 
 let handle_response = msg =>
-  Lwt_log_core.debug_f("Received:\n%s", (msg))
+  Lwt_log_core.debug_f("Received:\n%s", msg)
   >>= (
     () => {
       let r0 = Bitstring.bitstring_of_string(msg);
       let (tkl, oc, code, r1) = handle_header(r0);
       let (options, payload) = handle_options(oc, r1);
-      switch code {
+      switch (code) {
       | 69 => handle_ack_content(options, payload)
       | 65 => handle_ack_created(options)
       | 66 => handle_ack_deleted(options)
@@ -232,7 +205,6 @@ let create_options = options => {
   (value, length, count);
 };
 
-
 let create_observe_option_max_age = seconds => {
   let bits = [%bitstring {|seconds : 32 : bigendian|}];
   Bitstring.string_of_bitstring(bits);
@@ -243,21 +215,19 @@ let create_max_age = seconds => {
   Bitstring.string_of_bitstring(bits);
 };
 
-let create_observe_options = (~format=content_format^, ~age=max_age^, ~uri) => {
+let create_observe_options = (~format, ~age, ~uri) => {
   let uri_path = create_option(~number=11, ~value=uri);
-  let uri_host = create_option(~number=3, ~value=identity^);
+  let uri_host = create_option(~number=3, ~value=Unix.gethostname());
   let content_format = create_option(~number=12, ~value=format);
-  let observe = create_option(~number=6, ~value=observe_mode^);
+  let observe = create_option(~number=6, ~value="audit");
   let max_age =
     create_option(~number=14, ~value=create_max_age(Int32.of_int(age)));
   create_options([|uri_path, uri_host, observe, content_format, max_age|]);
 };
 
-
-
-let observe = (~token=token^, ~format=content_format^, ~uri, ()) => {
+let message = (~token, ~format, ~uri, ~age) => {
   let (options_value, options_length, options_count) =
-    create_observe_options(~age=max_age^, ~uri, ~format);
+    create_observe_options(~age, ~uri, ~format);
   let (header_value, header_length) =
     create_header(~tkl=String.length(token), ~oc=options_count, ~code=1);
   let (token_value, token_length) = create_token(~tk=token);
@@ -270,10 +240,8 @@ let observe = (~token=token^, ~format=content_format^, ~uri, ()) => {
   Bitstring.string_of_bitstring(bits);
 };
 
-
-
-let set_main_socket_security = soc => {
-  ZMQ.Socket.set_curve_serverkey(soc, curve_server_key^);
+let set_main_socket_security = (soc, key) => {
+  ZMQ.Socket.set_curve_serverkey(soc, key);
   ZMQ.Socket.set_curve_publickey(soc, main_public_key^);
   ZMQ.Socket.set_curve_secretkey(soc, main_secret_key^);
 };
@@ -285,8 +253,8 @@ let set_dealer_socket_security = (soc, key) => {
 };
 
 let connect_request_socket = (endpoint, ctx, kind) => {
-  let soc = ZMQ.Socket.create(ctx, kind);
-  set_main_socket_security(soc);
+  let soc = ZMQ.Socket.create(ctx.zmq_ctx, kind);
+  set_main_socket_security(soc, ctx.key);
   ZMQ.Socket.connect(soc, endpoint);
   Lwt_zmq.Socket.of_socket(soc);
 };
@@ -304,14 +272,13 @@ let close_socket = lwt_soc => {
   ZMQ.Socket.close(soc);
 };
 
-
-let observe_loop = (socket) => {
+let observe_loop = socket => {
   let rec loop = () =>
     Lwt_zmq.Socket.recv(socket)
     >>= handle_response
     >>= (
       resp =>
-        switch resp {
+        switch (resp) {
         | Response.Payload(msg) =>
           Lwt_io.printf("%s\n", msg) >>= (() => loop())
         | Response.Unavailable => Lwt_io.printf("=> observation ended\n")
@@ -321,26 +288,35 @@ let observe_loop = (socket) => {
   loop();
 };
 
-
 let set_socket_subscription = (socket, path) => {
   let soc = Lwt_zmq.Socket.to_socket(socket);
   ZMQ.Socket.subscribe(soc, path);
 };
 
-let observe_connect = ctx => {
-  let req_soc = connect_request_socket(main_endpoint^, ctx, ZMQ.Socket.req);
-  Lwt_log_core.debug_f("Subscribing:%s", uri_path^)
+let observe_worker = ctx => {
+  let req_soc =
+    connect_request_socket(ctx.main_endpoint, ctx, ZMQ.Socket.req);
+  Lwt_log_core.debug_f("Subscribing:%s", ctx.path)
   >>= (
     () =>
-      send_request(~msg=observe(~uri=uri_path^, ()), ~to_=req_soc)
+      send_request(
+        ~msg=
+          message(
+            ~token=ctx.token,
+            ~format=create_content_format(50),
+            ~uri=ctx.path,
+            ~age=ctx.max_age,
+          ),
+        ~to_=req_soc,
+      )
       >>= (
         resp =>
-          switch resp {
+          switch (resp) {
           | Response.Observe(key, ident) =>
             Lwt_log_core.debug_f(
               "Observing:%s with ident:%s",
-              uri_path^,
-              ident
+              ctx.path,
+              ident,
             )
             >>= (
               () => {
@@ -349,9 +325,9 @@ let observe_connect = ctx => {
                   connect_dealer_socket(
                     key,
                     ident,
-                    router_endpoint^,
-                    ctx,
-                    ZMQ.Socket.dealer
+                    ctx.router_endpoint,
+                    ctx.zmq_ctx,
+                    ZMQ.Socket.dealer,
                   );
                 observe_loop(deal_soc)
                 >>= (() => close_socket(deal_soc) |> Lwt.return);
@@ -365,7 +341,6 @@ let observe_connect = ctx => {
   );
 };
 
-
 let setup_main_keys = () => {
   let (public_key, private_key) = ZMQ.Curve.keypair();
   main_public_key := public_key;
@@ -378,19 +353,18 @@ let setup_router_keys = () => {
   router_secret_key := private_key;
 };
 
-
-let observe = (~main_endpoint, ~router_endpoint, ~path, ~key, ~token) => {
+let observe =
+    (~main_endpoint, ~router_endpoint, ~path, ~key, ~token, ~max_age) => {
   setup_main_keys();
   setup_router_keys();
-  {
-    zmq_ctx: ZMQ.Context.create(), 
-    main_endpoint: main_endpoint,
-    router_endpoint: router_endpoint,
-    path: path, 
-    key: key, 
-    token: token
+  let ctx = {
+    zmq_ctx: ZMQ.Context.create(),
+    main_endpoint,
+    router_endpoint,
+    path,
+    key,
+    token,
+    max_age,
   };
+  observe_worker(ctx) >|= (() => ZMQ.Context.terminate(ctx.zmq_ctx));
 };
-
-
-
