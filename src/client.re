@@ -354,7 +354,15 @@ let setup_router_keys = () => {
 };
 
 let observe =
-    (~main_endpoint, ~router_endpoint, ~path, ~key, ~token, ~max_age) => {
+    (
+      ~main_endpoint="tcp://127.0.0.1:5555",
+      ~router_endpoint="tcp://127.0.0.1:5556",
+      ~path,
+      ~key,
+      ~token="",
+      ~max_age=0,
+      (),
+    ) => {
   setup_main_keys();
   setup_router_keys();
   let ctx = {
