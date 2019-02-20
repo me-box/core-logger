@@ -115,7 +115,7 @@ let length = (ctx, ids) => {
   let id_list = String.split_on_char(',', ids);
   length(~ctx=ctx.db, ~id_list) >>=
     n => Http_response.ok(~content=Printf.sprintf("{\"length\":%d}", n), ()) 
-}
+};
 
 let get_req = (ctx, path_list) => {
   switch (path_list) {
@@ -138,6 +138,21 @@ let delete_req = (ctx, path_list) => {
   }
 };
 
+let observe_worker = (json) => {
+
+};
+
+let observe = (ctx, path, body) => {
+  body |> Cohttp_lwt.Body.to_string >|= Ezjsonm.from_string >>= observe_worker => Http_response.ok();  
+};
+
+let put_req = (ctx, path_list, body) => {
+  switch (path_list) {
+  | [_, _, _, "observe", path] => observe(ctx, path, body)
+  | _ => Http_response.bad_request(~content="Error:unknown path\n", ())
+  }
+};
+
 let handle_req_worker = (ctx, req, body) => {
   let meth = req |> Request.meth;
   let uri_path = req |> Request.uri |> Uri.to_string;
@@ -146,6 +161,7 @@ let handle_req_worker = (ctx, req, body) => {
   | `POST => post_req(ctx, path_list, body);
   | `GET => get_req(ctx, path_list);
   | `DELETE => delete_req(ctx, path_list);
+  | `PUT => put_req(ctx, path_list, body);
   | _ => Http_response.bad_request(~content="Error:unknown method\n", ())
   }
 };
