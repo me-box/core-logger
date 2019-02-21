@@ -138,12 +138,28 @@ let delete_req = (ctx, path_list) => {
   }
 };
 
-let observe_worker = (json) => {
 
+
+let observe_worker = (json) => {
+  Lwt.async{
+    () => {
+      let rec loop = () => {
+        Lwt_io.printl("foo") >>= 
+          () => Lwt_unix.sleep(1.0) >>= 
+            () => loop();
+      };
+      loop();
+    };
+  };
 };
 
 let observe = (ctx, path, body) => {
-  body |> Cohttp_lwt.Body.to_string >|= Ezjsonm.from_string >>= observe_worker => Http_response.ok();  
+  body |> Cohttp_lwt.Body.to_string >|= 
+    Ezjsonm.from_string |>
+      observe_worker |>
+        () => {
+            Http_response.ok(~content="observed", ());  
+        };
 };
 
 let put_req = (ctx, path_list, body) => {
