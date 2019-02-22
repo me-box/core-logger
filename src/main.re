@@ -138,25 +138,33 @@ let delete_req = (ctx, path_list) => {
   }
 };
 
+let observe_call = (json) => {
+  open Ezjsonm;
+  open Zest;
+  switch (json) {
+  | `A([`O([("path", `String path)]), `O([("key", `String key)])]) => 
+    observe(~path, ~key, ()); 
+  | _ => failwith("invalid json");
+  }
+};
 
+let loop_test = () => {
+  let rec loop = () => {
+    Lwt_io.printl("foo") >>= 
+      () => Lwt_unix.sleep(1.0) >>= 
+        () => loop();
+   };
+  loop();
+};
 
 let observe_worker = (json) => {
-  Lwt.async{
-    () => {
-      let rec loop = () => {
-        Lwt_io.printl("foo") >>= 
-          () => Lwt_unix.sleep(1.0) >>= 
-            () => loop();
-      };
-      loop();
-    };
-  };
+  Lwt.async{() => observe_call(json)};
 };
 
 let observe = (ctx, path, body) => {
   body |> Cohttp_lwt.Body.to_string >|= 
-    Ezjsonm.from_string |>
-      observe_worker |>
+    Ezjsonm.from_string >|=
+      observe_worker >>=
         () => {
             Http_response.ok(~content="observed", ());  
         };
