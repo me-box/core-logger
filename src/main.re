@@ -175,7 +175,7 @@ let observe_worker = (json) => {
   Lwt.async{() => observe_call(json)};
 };
 
-let observe = (ctx, path, body) => {
+let observe = (ctx, body) => {
   body |> Cohttp_lwt.Body.to_string >|= 
     Ezjsonm.from_string >|=
       observe_worker >>=
@@ -186,7 +186,7 @@ let observe = (ctx, path, body) => {
 
 let put_req = (ctx, path_list, body) => {
   switch (path_list) {
-  | [_, _, _, "observe", path] => observe(ctx, path, body)
+  | [_, _, _, "observe"] => observe(ctx, body)
   | _ => Http_response.bad_request(~content="Error:unknown path\n", ())
   }
 };
