@@ -142,8 +142,22 @@ let observe_call = (json) => {
   open Ezjsonm;
   open Zest;
   switch (json) {
-  | `A([`O([("path", `String path)]), `O([("key", `String key)])]) => 
-    observe(~path, ~key, ()); 
+  | `A([`O([("path", `String path)]), 
+    `O([("key", `String key)])]) => 
+      observe(~path, ~key, ());
+  | `A([`O([("path", `String path)]), 
+    `O([("key", `String key)]), 
+    `O([("main_endpoint", `String main_endpoint)]), 
+    `O([("router_endpoint", `String router_endpoint)]),
+    `O([("max_age", `Float max_age)]), 
+    `O([("token", `String token)])]) =>
+      observe(~path, 
+              ~key, 
+              ~main_endpoint, 
+              ~router_endpoint, 
+              ~token, 
+              ~max_age=int_of_float(max_age), 
+              ());
   | _ => failwith("invalid json");
   }
 };
