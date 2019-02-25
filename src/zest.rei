@@ -1,5 +1,6 @@
 let observe:
   (
+    ~db: Timeseries.t,
     ~main_endpoint: string=?,
     ~router_endpoint: string=?,
     ~path: string,

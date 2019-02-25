@@ -138,20 +138,21 @@ let delete_req = (ctx, path_list) => {
   }
 };
 
-let observe_call = (json) => {
+let observe_call = (ctx, json) => {
   open Ezjsonm;
   open Zest;
   switch (json) {
   | `A([`O([("path", `String path)]), 
     `O([("key", `String key)])]) => 
-      observe(~path, ~key, ());
+      observe(~db=ctx.db, ~path, ~key, ());
   | `A([`O([("path", `String path)]), 
     `O([("key", `String key)]), 
     `O([("main_endpoint", `String main_endpoint)]), 
     `O([("router_endpoint", `String router_endpoint)]),
     `O([("max_age", `Float max_age)]), 
     `O([("token", `String token)])]) =>
-      observe(~path, 
+      observe(~db=ctx.db, 
+              ~path, 
               ~key, 
               ~main_endpoint, 
               ~router_endpoint, 
@@ -171,14 +172,14 @@ let loop_test = () => {
   loop();
 };
 
-let observe_worker = (json) => {
-  Lwt.async{() => observe_call(json)};
+let observe_worker = (ctx, json) => {
+  Lwt.async{() => observe_call(ctx, json)};
 };
 
 let observe = (ctx, body) => {
   body |> Cohttp_lwt.Body.to_string >|= 
     Ezjsonm.from_string >|=
-      observe_worker >>=
+      observe_worker(ctx)>>=
         () => {
             Http_response.ok(~content="observed", ());  
         };
