@@ -2,7 +2,7 @@ open Lwt.Infix;
 
 type datapoint = {
   tag: option((string,string)),
-  value: float
+  value: string
 };
   
   
@@ -10,7 +10,7 @@ let datapoint_t =
   Irmin.Type.(
     record("datapoint", (tag, value) => {tag, value})
     |+ field("tag", option(pair(string,string)), (t) => t.tag)
-    |+ field("value", float, (t) => t.value)
+    |+ field("value", string, (t) => t.value)
     |> sealr
 );
   
@@ -45,9 +45,9 @@ let convert_worker = (ts, datapoint) => {
   open Ezjsonm;
   switch(datapoint) {
   | [(_, n)] => 
-      format_datapoint(ts, None, get_float(n));
+      format_datapoint(ts, None, get_string(n));
   | [(s1,s2), (_, n)] => 
-      format_datapoint(ts, Some((s1, get_string(s2))), get_float(n));
+      format_datapoint(ts, Some((s1, get_string(s2))), get_string(n));
   | _ => failwith("Error:badly formatted JSON");
   }
 };
@@ -72,8 +72,8 @@ let to_json_worker = (ts, datapoint) => {
   switch(datapoint) {
   | {tag: t, value: v} => {
       switch(t) {
-      | Some((s1,s2)) => dict([("timestamp", int64(ts)), ("data", dict([(s1, string(s2)), ("value", float(v))]))]);
-      | None => dict([("timestamp", int64(ts)), ("data", dict([("value", float(v))]))]);
+      | Some((s1,s2)) => dict([("timestamp", int64(ts)), ("data", dict([(s1, string(s2)), ("value", string(v))]))]);
+      | None => dict([("timestamp", int64(ts)), ("data", dict([("value", string(v))]))]);
       }
     }
   }

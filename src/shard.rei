@@ -5,7 +5,7 @@ let convert: list((int64, Ezjsonm.t)) => list((int64,datapoint));
 
 let to_json: list((int64,datapoint)) => Ezjsonm.t;
 
-let values: list((int64,datapoint)) => list(float);
+let values: list((int64,datapoint)) => list(string);
 
 let filter: (list((int64, datapoint)), (string, string) => bool, (string, string)) => list((int64, datapoint));
 

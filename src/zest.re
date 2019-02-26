@@ -273,7 +273,17 @@ let close_socket = lwt_soc => {
   ZMQ.Socket.close(soc);
 };
 
-let observe_loop = socket => {
+let info = (fmt) => Irmin_unix.info(~author="core logger", fmt);
+
+let write_log = (ctx, id, json) => {
+  open Timeseries;
+  switch(validate_json(json)) {
+  | Some((t,j)) => write(~ctx=ctx.db, ~info=info("write"), ~timestamp=t, ~id=id, ~json=j)
+  | None => failwith("Error:badly formatted JSON\n")
+  };
+}
+
+let observe_loop = (ctx, socket) => {
   let rec loop = () =>
     Lwt_zmq.Socket.recv(socket)
     >>= handle_response
@@ -281,7 +291,9 @@ let observe_loop = socket => {
       resp =>
         switch (resp) {
         | Response.Payload(msg) => 
-          Lwt_io.printf("%s\n", msg) >>= (() => loop())
+          Lwt_io.printf("%s\n", msg) >>=
+            () => write_log(ctx, "foo", Ezjsonm.dict([("value", `String(msg))])) >>=
+              () => loop();
         | Response.Unavailable => Lwt_io.printf("=> observation ended\n")
         | _ => failwith("unhandled response")
         }
@@ -330,7 +342,7 @@ let observe_worker = ctx => {
                     ctx.zmq_ctx,
                     ZMQ.Socket.dealer,
                   );
-                observe_loop(deal_soc)
+                observe_loop(ctx, deal_soc)
                 >>= (() => close_socket(deal_soc) |> Lwt.return);
               }
             )

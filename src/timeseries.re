@@ -54,14 +54,14 @@ let validate_json = (json) => {
   open Ezjsonm;
   open Int64;
   switch (get_dict(value(json))) {
-  | [("value",`Float n)] => 
+  | [("value",`String n)] => 
       Some((get_microseconds(), json));
-  | [("timestamp",`Float ts), ("value",`Float n)] => 
-      Some((of_float(ts), dict([("value",`Float(n))])));
-  | [(tag_name, `String tag_value), ("value",`Float n)] => 
+  | [("timestamp",`Float ts), ("value",`String n)] => 
+      Some((of_float(ts), dict([("value",`String(n))])));
+  | [(tag_name, `String tag_value), ("value",`String n)] => 
       Some((get_microseconds(), json));
-  | [("timestamp",`Float ts), (tag_name, `String tag_value), ("value",`Float n)] => 
-      Some((of_float(ts), dict([(tag_name, `String(tag_value)), ("value",`Float(n))])));
+  | [("timestamp",`Float ts), (tag_name, `String tag_value), ("value",`String n)] => 
+      Some((of_float(ts), dict([(tag_name, `String(tag_value)), ("value",`String(n))])));
   | _ => None;
   }
 };
@@ -390,31 +390,13 @@ let read_memory_then_disk = (ctx, k, n, mode) => {
         }
 };
 
-let aggregate = (data, name, func) => {
-  open Ezjsonm;
-  Shard.values(data) |> Array.of_list |> func |>
-    result => dict([(name, `Float(result))]);
-};
 
 let count = (data) => {
   let count = float_of_int(List.length(data));
   Ezjsonm.dict([("count", `Float(count))]);
 };  
 
-let return_aggregate_data = (data, arg) => {
-  open Oml.Util.Array;
-  open Oml.Statistics.Descriptive;
-  switch (arg) {
-  | ["sum"] => aggregate(data, "sum", sumf);
-  | ["max"] => aggregate(data, "max", max);
-  | ["min"] => aggregate(data, "min", min);
-  | ["mean"] => aggregate(data, "mean", mean);
-  | ["sd"] => aggregate(data, "sd", sd);
-  | ["median"] => aggregate(data, "median", median);
-  | ["count"] => count(data)
-  | _ => failwith("Error:unknown path\n")
-  } |> Lwt.return;
-};
+
 
 let read_last_worker = (~ctx, ~id as k, ~n, ~info) => {
   if (Membuf.exists(ctx.membuf, k)) {
@@ -431,11 +413,6 @@ let return_filtered_data = (~sort, ~tag, data, func) => {
     data' => return_data(~sort, data')
 };
 
-let return_filtered_aggregate_data = (~sort, ~tag, data, func, agg_mode) => {
-  let (name, value) = tag;
-  Shard.filter(data, func, (name,value)) |> 
-    data' => return_aggregate_data(data', [agg_mode]);
-};
 
 module String_extra = {
   let contains = (s1, s2) => {
@@ -453,10 +430,8 @@ let process_data = (data, args, ~sort) => {
   switch (args) {
     | [] => return_data(~sort, data)
     | ["filter", name, "equals", value] => return_filtered_data(~sort, ~tag=(name,value), data, String.equal)
-    | ["filter", name, "equals", value, agg_mode] => return_filtered_aggregate_data(~sort, ~tag=(name,value), data, String_extra.contains, agg_mode)
     | ["filter", name, "contains", value] => return_filtered_data(~sort, ~tag=(name,value), data, String_extra.contains)
-    | ["filter", name, "contains", value, agg_mode] => return_filtered_aggregate_data(~sort, ~tag=(name,value), data, String_extra.contains, agg_mode)
-    | _ => return_aggregate_data(data, args)
+    | _ => failwith("unsupported optional args")
     }
 };
 
