@@ -1,6 +1,7 @@
 open Lwt.Infix;
 
 type t = {
+  id: string,
   zmq_ctx: ZMQ.Context.t,
   db: Timeseries.t,
   main_endpoint: string,
@@ -292,7 +293,7 @@ let observe_loop = (ctx, socket) => {
         switch (resp) {
         | Response.Payload(msg) => 
           Lwt_io.printf("%s\n", msg) >>=
-            () => write_log(ctx, "foo", Ezjsonm.dict([("value", `String(msg))])) >>=
+            () => write_log(ctx, ctx.id, Ezjsonm.dict([("value", `String(msg))])) >>=
               () => loop();
         | Response.Unavailable => Lwt_io.printf("=> observation ended\n")
         | _ => failwith("unhandled response")
@@ -368,6 +369,7 @@ let setup_router_keys = () => {
 
 let observe =
     (
+      ~id,
       ~db,
       ~main_endpoint="tcp://127.0.0.1:5555",
       ~router_endpoint="tcp://127.0.0.1:5556",
@@ -380,6 +382,7 @@ let observe =
   setup_main_keys();
   setup_router_keys();
   let ctx = {
+    id,
     zmq_ctx: ZMQ.Context.create(),
     db,
     main_endpoint,
