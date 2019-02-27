@@ -150,16 +150,20 @@ let loop_test = () => {
 };
 
 let observe_worker = (ctx, id, json) => {
-  Lwt.async{() => observe_call(ctx, id, json)};
+  Lwt.async{
+    () => Lwt.catch(
+      () => observe_call(ctx, id, json),
+      fun
+      | e => Lwt_io.printf("Observation to %s failed:%s\n", id, Printexc.to_string(e))
+    );
+  };
 };
 
 let observe = (ctx, id, body) => {
   body |> Cohttp_lwt.Body.to_string >|= 
     Ezjsonm.from_string >|=
-      observe_worker(ctx, id)>>=
-        () => {
-            Http_response.ok(~content="observed", ());  
-        };
+      observe_worker(ctx, id) >>=
+        () => Http_response.ok(());  
 };
 
 let put_req = (ctx, path_list, body) => {
