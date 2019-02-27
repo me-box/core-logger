@@ -295,7 +295,7 @@ let observe_loop = (ctx, socket) => {
           Lwt_io.printf("%s\n", msg) >>=
             () => write_log(ctx, ctx.id, Ezjsonm.dict([("value", `String(msg))])) >>=
               () => loop();
-        | Response.Unavailable => Lwt_io.printf("=> observation ended\n")
+        | Response.Unavailable => Lwt_io.printf("=> observation to %s ended\n", ctx.id)
         | _ => failwith("unhandled response")
         }
     );
