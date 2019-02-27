@@ -152,7 +152,10 @@ let loop_test = () => {
 let observe_worker = (ctx, id, json) => {
   Lwt.async{
     () => Lwt.catch(
-      () => observe_call(ctx, id, json),
+      () => {
+        Lwt_io.printf("Starting observation to %s\n", id) >>=
+          () => observe_call(ctx, id, json)
+      },
       fun
       | e => Lwt_io.printf("Observation to %s failed:%s\n", id, Printexc.to_string(e))
     );
