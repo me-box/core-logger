@@ -41,30 +41,6 @@ module Http_response {
   };
 };
 
-let post_worker = (ctx, id, json) => {
-  open Timeseries;
-  switch(validate_json(json)) {
-  | Some((t,j)) => write(~ctx=ctx.db, ~info=info("write"), ~timestamp=t, ~id=id, ~json=j)
-  | None => failwith("Error:badly formatted JSON\n")
-  };
-}
-
-let post = (ctx, id, body) => {
-  open Timeseries;
-  open Ezjsonm;
-  body |> Cohttp_lwt.Body.to_string >|=
-    Ezjsonm.from_string >>= json => switch(json) {
-    | `O(_) => post_worker(ctx, id, json) 
-    | `A(lis) => Lwt_list.iter_s(x => post_worker(ctx, id, `O(get_dict(x))), lis)
-    } >>= fun () => Http_response.ok()
-};
-
-let post_req = (ctx, path_list, body) => {
-  switch (path_list) {
-  | [_, _, _, "ts", id] => post(ctx, id, body)
-  | _ => failwith("Error:unknown path\n")
-  }
-};
 
 let read_last = (ctx, ids, n, xargs) => {
   open Timeseries;
@@ -198,7 +174,6 @@ let handle_req_worker = (ctx, req, body) => {
   let uri_path = req |> Request.uri |> Uri.to_string;
   let path_list = String.split_on_char('/', uri_path);
   switch (meth) {
-  | `POST => post_req(ctx, path_list, body);
   | `GET => get_req(ctx, path_list);
   | `DELETE => delete_req(ctx, path_list);
   | `PUT => put_req(ctx, path_list, body);
