@@ -28,9 +28,9 @@ Logging takes place through Zest [observations](https://github.com/me-box/zestdb
 curl -X PUT localhost:8000/observe/foo --data '[{"path": "/ts/foo"}, {"key": "vl6wu0A@XP?}Or/&BR#LSxn>A+}L)p44/W[wXL3<"}, {"main_endpoint": "tcp://127.0.0.1:5555"}, {"router_endpoint": "tcp://127.0.0.1:5556"}, {"max_age": 60}, {"token": ""}]'
 ```
 
-## POST to store
+## Interact with store
 
-Once we have setup some observations we can post to the store to generate some log entries. For example, below we post 5 times to the 
+Once we have setup some observations we can post to the store to generate some log entries. For example, below we post 5 times to the store. 
 
 ```bash
 docker run --network host -it jptmoore/zestdb /app/zest/client.exe --server-key 'vl6wu0A@XP?}Or/&BR#LSxn>A+}L)p44/W[wXL3<' --path '/ts/foo' --mode post --payload '{"value": 42}' --loop 5
@@ -63,6 +63,20 @@ produces:
 [{"timestamp":1551272348812208,"data":{"value":"1551272348830 c2480de2b3e0 linuxkit-025000000001 POST /ts/foo 65"}}]
 ```
 
+
+## combining logs
+
+We can combine logs by comma-separating the the id of each data source when using an API call.
+
+```bash
+curl localhost:8000/ts/foo,bar/first/1
+```
+
+produces:
+
+```json
+[{"timestamp":1551272344787363,"data":{"value":"1551272344801 c2480de2b3e0 linuxkit-025000000001 POST /ts/foo 65"}},{"timestamp":1551364092420804,"data":{"value":"1551364092431 b160be0536a4 linuxkit-025000000001 POST /ts/bar 65"}}]
+```
 
 
 
