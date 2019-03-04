@@ -54,7 +54,7 @@ Starting observation to foo
 We can use the time series API to read the stored logs.
 
 ```bash
-curl localhost:8000/ts/foo/latest
+docker run --network host --rm byrnedo/alpine-curl localhost:8000/ts/foo/latest
 ```
 
 produces:
@@ -69,7 +69,7 @@ produces:
 We can combine logs by comma-separating the the id of each data source when using an API call.
 
 ```bash
-curl localhost:8000/ts/foo,bar/first/1
+docker run --network host --rm byrnedo/alpine-curl localhost:8000/ts/foo,bar/first/1
 ```
 
 produces:
