@@ -68,6 +68,14 @@ produces:
 
 We can combine logs by comma-separating the the id of each data source when using an API call.
 
+Let's add data to another time series first.
+
+```bash
+docker run --network host -it jptmoore/zestdb /app/zest/client.exe --server-key 'vl6wu0A@XP?}Or/&BR#LSxn>A+}L)p44/W[wXL3<' --path '/ts/bar' --mode post --payload '{"value": 42}' --loop 5
+```
+
+We can now retrieve data from both time series. Note, this request is equivalent to calling */ts/foo,bar/earliest*.
+
 ```bash
 docker run --network host --rm byrnedo/alpine-curl localhost:8000/ts/foo,bar/first/1
 ```
