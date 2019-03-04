@@ -17,7 +17,7 @@ docker run -p 5555:5555 -p 5556:5556 -it --name zest --rm jptmoore/zestdb /app/z
 We will start the web server on its default port of 8000 without TLS enabled.
 
 ```bash
-todo: dockerize
+docker run -it --network host -it --name logger --rm jptmoore/zestlogger /home/databox/logger
 ```
 
 ## request audit information
@@ -25,7 +25,7 @@ todo: dockerize
 Logging takes place through Zest [observations](https://github.com/me-box/zestdb/tree/master/docs#observation). To setup an observation we need to make a PUT request with some JSON. The length of an observation is determined by the *max-age* field value specified in seconds. A zero value means the observation will not timeout. The PUT request will return immediately so you should monitor the console for issues. The PUT request requires the id of the datasource you want to observe supplied in the path, for example, */observe/foo*.
 
 ```bash
-curl -X PUT localhost:8000/observe/foo --data '[{"path": "/ts/foo"}, {"key": "vl6wu0A@XP?}Or/&BR#LSxn>A+}L)p44/W[wXL3<"}, {"main_endpoint": "tcp://127.0.0.1:5555"}, {"router_endpoint": "tcp://127.0.0.1:5556"}, {"max_age": 60}, {"token": ""}]'
+docker run --network host --rm byrnedo/alpine-curl -X PUT 127.0.0.1:8000/observe/foo --data '[{"path": "/ts/foo"}, {"key": "vl6wu0A@XP?}Or/&BR#LSxn>A+}L)p44/W[wXL3<"}, {"main_endpoint": "tcp://127.0.0.1:5555"}, {"router_endpoint": "tcp://127.0.0.1:5556"}, {"max_age": 60}, {"token": ""}]'
 ```
 
 ## Interact with store
