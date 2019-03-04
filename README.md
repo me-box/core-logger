@@ -86,6 +86,71 @@ produces:
 [{"timestamp":1551272344787363,"data":{"value":"1551272344801 c2480de2b3e0 linuxkit-025000000001 POST /ts/foo 65"}},{"timestamp":1551364092420804,"data":{"value":"1551364092431 b160be0536a4 linuxkit-025000000001 POST /ts/bar 65"}}]
 ```
 
+## Time series API
+
+
+#### Read latest entry
+    URL: /ts/<id>/latest
+    Method: GET
+    Parameters: replace <id> with an identifier
+    Notes: return the latest entry
+    
+#### Read last number of entries
+    
+    URL: /ts/<id>/last/<n>
+    Method: GET
+    Parameters: replace <id> with an identifier, replace <n> with the number of entries
+    Notes: return the number of entries requested
+    
+
+#### Read earliest entry
+    URL: /ts/<id>/earliest
+    Method: GET
+    Parameters: replace <id> with an identifier
+    Notes: return the first entry
+    
+#### Read first number of entries
+    
+    URL: /ts/<id>/first/<n>
+    Method: GET
+    Parameters: replace <id> with an identifier, replace <n> with the number of entries
+    Notes: return the number of entries requested    
+    
+#### Read all entries since a time (inclusive)
+    
+    URL: /ts/<id>/since/<from>
+    Method: GET
+    Parameters: replace <id> with an identifier, replace <from> with epoch milliseconds
+    Notes: return entries from time provided
+    
+#### Read all entries in a time range (inclusive)
+    
+    URL: /ts/<id>/range/<from>/<to>
+    Method: GET
+    Parameters: replace <id> with an identifier, replace <from> and <to> with epoch milliseconds
+    Notes: return entries in time range provided
+    
+
+#### Delete all entries since a time (inclusive)
+    
+    URL: /ts/<id>/since/<from>
+    Method: DELETE
+    Parameters: replace <id> with an identifier, replace <from> with epoch milliseconds
+    Notes: deletes entries from time provided
+    
+#### Delete all entries in a time range (inclusive)
+    
+    URL: /ts/<id>/range/<from>/<to>
+    Method: DELETE
+    Parameters: replace <id> with an identifier, replace <from> and <to> with epoch milliseconds
+    Notes: deletes entries in time range provided
+    
+#### Length of time series
+
+    URL: /ts/<id>/length
+    Method: GET
+    Parameters: replace <id> with an identifier
+    Notes: return the number of entries in the time series
 
 
 
