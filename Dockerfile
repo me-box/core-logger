@@ -1,21 +1,23 @@
-FROM ocaml/opam2
+FROM alpine
 
-RUN sudo apt-get install -y time m4
-RUN opam depext -i oml reason ezjsonm lwt_log lwt-zmq bitstring tls ssl irmin-unix
-RUN opam install --unlock-base ppx_bitstring
+RUN apk update && apk add alpine-sdk bash ncurses-dev m4 perl gmp-dev zlib-dev libsodium-dev opam zeromq-dev
+RUN opam init --disable-sandboxing -ya --compiler 4.07.1
+RUN opam install -y --unlock-base ppx_bitstring
+RUN opam install -y depext
+RUN opam depext -i -y oml reason ezjsonm lwt_log lwt-zmq bitstring tls ssl irmin-unix
 
 ADD src src
-RUN sudo chown -R opam:nogroup src
 RUN cd src && opam config exec -- dune build --profile release ./main.exe
 
-FROM debian
+FROM alpine
 
-RUN useradd -ms /bin/bash databox
+RUN adduser -D -u 1000 databox
 
 WORKDIR /home/databox
 COPY --from=0 /src/_build/default/main.exe ./logger
 
-RUN apt-get update && apt-get install -y libgmp10 libssl1.1 zlib1g openssl libzmq3
+RUN apk update && apk upgrade \
+&& apk add libsodium gmp zlib libzmq openssl
 
 USER databox
 
