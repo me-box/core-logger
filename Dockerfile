@@ -2,7 +2,6 @@ FROM alpine
 
 RUN apk update && apk add alpine-sdk bash ncurses-dev m4 perl gmp-dev zlib-dev libsodium-dev opam zeromq-dev
 RUN opam init --disable-sandboxing -ya --compiler 4.07.1
-RUN opam install -y --unlock-base ppx_bitstring
 RUN opam install -y depext
 RUN opam depext -i -y oml reason ezjsonm lwt_log lwt-zmq bitstring tls ssl irmin-unix
 
