@@ -1,4 +1,4 @@
-FROM alpine
+FROM alpine:3.9
 
 RUN apk update && apk add alpine-sdk bash ncurses-dev m4 perl gmp-dev zlib-dev libsodium-dev opam zeromq-dev
 RUN opam init --disable-sandboxing -ya --compiler 4.07.1
