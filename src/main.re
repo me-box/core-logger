@@ -5,7 +5,7 @@ open Cohttp_lwt_unix;
 open Client;
 
 let path_to_db = ref("/tmp/nibble/");
-let http_port = ref(8000);
+let http_port = ref(8080);
 let max_buffer_size = ref(10000);
 let shard_size = ref(1000);
 let show_files = ref(false);
@@ -46,36 +46,36 @@ let read_last = (ctx, ids, n, xargs) => {
   open Timeseries;
   let id_list = String.split_on_char(',', ids);
   read_last(~ctx=ctx.db, ~info=info("read_last"), ~id_list, ~n=int_of_string(n), ~xargs) >|=
-    Ezjsonm.to_string >>= s => Http_response.ok(~content=s, ()) 
+    Ezjsonm.to_string >>= s => Http_response.ok(~content=s, ())
 };
 
 let read_first = (ctx, ids, n, xargs) => {
   open Timeseries;
   let id_list = String.split_on_char(',', ids);
   read_first(~ctx=ctx.db, ~info=info("read_first"), ~id_list, ~n=int_of_string(n), ~xargs) >|=
-    Ezjsonm.to_string >>= s => Http_response.ok(~content=s, ()) 
+    Ezjsonm.to_string >>= s => Http_response.ok(~content=s, ())
 };
 
 let read_since = (ctx, ids, from, xargs) => {
   open Timeseries;
   let id_list = String.split_on_char(',', ids);
   read_since(~ctx=ctx.db, ~info=info("read_since"), ~id_list, ~from=Int64.of_string(from), ~xargs) >|=
-    Ezjsonm.to_string >>= s => Http_response.ok(~content=s, ()) 
+    Ezjsonm.to_string >>= s => Http_response.ok(~content=s, ())
 };
 
 let delete_since = (ctx, ids, from, xargs) => {
   open Timeseries;
   let id_list = String.split_on_char(',', ids);
   read_since(~ctx=ctx.db, ~info=info("read_since"), ~id_list, ~from=Int64.of_string(from), ~xargs) >>=
-    json => delete(~ctx=ctx.db, ~info=info("delete_since"), ~id_list, ~json) >>= 
-      () => Http_response.ok() 
+    json => delete(~ctx=ctx.db, ~info=info("delete_since"), ~id_list, ~json) >>=
+      () => Http_response.ok()
 };
 
 let read_range = (ctx, ids, from, to_, xargs) => {
   open Timeseries;
   let id_list = String.split_on_char(',', ids);
   read_range(~ctx=ctx.db, ~info=info("read_range"), ~id_list, ~from=Int64.of_string(from), ~to_=Int64.of_string(to_), ~xargs) >|=
-    Ezjsonm.to_string >>= s => Http_response.ok(~content=s, ()) 
+    Ezjsonm.to_string >>= s => Http_response.ok(~content=s, ())
 };
 
 let delete_range = (ctx, ids, from, to_, xargs) => {
@@ -90,7 +90,7 @@ let length = (ctx, ids) => {
   open Timeseries;
   let id_list = String.split_on_char(',', ids);
   length(~ctx=ctx.db, ~id_list) >>=
-    n => Http_response.ok(~content=Printf.sprintf("{\"length\":%d}", n), ()) 
+    n => Http_response.ok(~content=Printf.sprintf("{\"length\":%d}", n), ())
 };
 
 let get_req = (ctx, path_list) => {
@@ -118,23 +118,23 @@ let observe_call = (ctx, id, json) => {
   open Ezjsonm;
   open Zest;
   switch (json) {
-  | `A([`O([("path", `String path)]), 
-    `O([("key", `String key)])]) => 
+  | `A([`O([("path", `String path)]),
+    `O([("key", `String key)])]) =>
       observe(~id, ~db=ctx.db, ~path, ~key, ());
-  | `A([`O([("path", `String path)]), 
-    `O([("key", `String key)]), 
-    `O([("main_endpoint", `String main_endpoint)]), 
+  | `A([`O([("path", `String path)]),
+    `O([("key", `String key)]),
+    `O([("main_endpoint", `String main_endpoint)]),
     `O([("router_endpoint", `String router_endpoint)]),
-    `O([("max_age", `Float max_age)]), 
+    `O([("max_age", `Float max_age)]),
     `O([("token", `String token)])]) =>
-      observe(~id, 
-              ~db=ctx.db, 
-              ~path, 
-              ~key, 
-              ~main_endpoint, 
-              ~router_endpoint, 
-              ~token, 
-              ~max_age=int_of_float(max_age), 
+      observe(~id,
+              ~db=ctx.db,
+              ~path,
+              ~key,
+              ~main_endpoint,
+              ~router_endpoint,
+              ~token,
+              ~max_age=int_of_float(max_age),
               ());
   | _ => failwith("invalid json");
   }
@@ -142,8 +142,8 @@ let observe_call = (ctx, id, json) => {
 
 let loop_test = () => {
   let rec loop = () => {
-    Lwt_io.printl("foo") >>= 
-      () => Lwt_unix.sleep(1.0) >>= 
+    Lwt_io.printl("foo") >>=
+      () => Lwt_unix.sleep(1.0) >>=
         () => loop();
    };
   loop();
@@ -163,10 +163,10 @@ let observe_worker = (ctx, id, json) => {
 };
 
 let observe = (ctx, id, body) => {
-  body |> Cohttp_lwt.Body.to_string >|= 
+  body |> Cohttp_lwt.Body.to_string >|=
     Ezjsonm.from_string >|=
       observe_worker(ctx, id) >>=
-        () => Http_response.ok(());  
+        () => Http_response.ok(());
 };
 
 let put_req = (ctx, path_list, body) => {
@@ -211,8 +211,8 @@ let server (~ctx) = {
 
 
 let register_signal_handlers = () => {
-  Lwt_unix.(on_signal(Sys.sigterm, (_) => raise(Interrupt("Caught SIGTERM"))) |> 
-    id => on_signal(Sys.sighup, (_) => raise(Interrupt("Caught SIGHUP"))) |> 
+  Lwt_unix.(on_signal(Sys.sigterm, (_) => raise(Interrupt("Caught SIGTERM"))) |>
+    id => on_signal(Sys.sighup, (_) => raise(Interrupt("Caught SIGHUP"))) |>
       id => on_signal(Sys.sigint, (_) => raise(Interrupt("Caught SIGINT"))));
 };
 
@@ -238,12 +238,12 @@ let parse_cmdline = () => {
       "--http-port",
       Arg.Set_int(http_port),
       ": to set the http port"
-    ), 
+    ),
     (
       "--max-buffer-size",
       Arg.Set_int(max_buffer_size),
       ": to set the max buffer size"
-    ), 
+    ),
     (
       "--shard-size",
       Arg.Set_int(shard_size),
@@ -254,8 +254,8 @@ let parse_cmdline = () => {
       Arg.Set(show_files),
       ": to show files in git"
     ),
-    ("--enable-debug", Arg.Set(log_mode), ": turn debug mode on"), 
-    ("--enable-tls", Arg.Set(tls_mode), ": use https") 
+    ("--enable-debug", Arg.Set(log_mode), ": turn debug mode on"),
+    ("--enable-tls", Arg.Set(tls_mode), ": use https")
 
   ];
   Arg.parse(speclist, x => raise(Arg.Bad("Bad argument : " ++ x)), usage);
@@ -276,8 +276,8 @@ let init = () => {
   let () = ignore(register_signal_handlers());
   parse_cmdline();
   log_mode^ ? enable_debug() : ();
-  { 
-    db: Timeseries.create(~path_to_db=path_to_db^, ~max_buffer_size=max_buffer_size^, ~shard_size=shard_size^, ~show_files=show_files^), 
+  {
+    db: Timeseries.create(~path_to_db=path_to_db^, ~max_buffer_size=max_buffer_size^, ~shard_size=shard_size^, ~show_files=show_files^),
     m: Lwt_mutex.create()
   };
 };
@@ -300,4 +300,3 @@ let run_server = (~ctx) => {
 };
 
 run_server(~ctx=init());
-
